@@ -8,4 +8,6 @@ idf_component_register(
         nvs_flash
         esp_psram 
         esp_wifi
+        esp_http_server
+        esp_timer
 ) 
