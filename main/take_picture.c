@@ -101,10 +101,10 @@ static camera_config_t camera_config = {
     .pixel_format = PIXFORMAT_JPEG,
     // QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG.
     // The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
-    .frame_size = FRAMESIZE_QVGA,
+    .frame_size = FRAMESIZE_HVGA,
 
     // 0-63, for OV series camera sensors, lower number means higher quality
-    .jpeg_quality = 12,
+    .jpeg_quality = 10,
     // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .fb_count = 1,
     // CAMERA_FB_IN_DRAM CAMERA_FB_IN_PSRAM
@@ -135,6 +135,8 @@ esp_err_t jpg_stream_httpd_handler(httpd_req_t *req)
     const size_t _STREAM_BOUNDARY_SIZE = strlen(_STREAM_BOUNDARY);
     static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n";
 
+    const bool convertToJpeg  = (camera_config.pixel_format != PIXFORMAT_JPEG);
+
     camera_fb_t *fb = NULL;
     esp_err_t res = ESP_OK;
     size_t _jpg_buf_len;
@@ -160,7 +162,7 @@ esp_err_t jpg_stream_httpd_handler(httpd_req_t *req)
             break;
         }
 
-        if (fb->format != PIXFORMAT_JPEG)
+        if (convertToJpeg)
         {
             bool jpeg_converted = frame2jpg(fb, camera_config.jpeg_quality, &_jpg_buf, &_jpg_buf_len);
             if (!jpeg_converted)
@@ -198,7 +200,7 @@ esp_err_t jpg_stream_httpd_handler(httpd_req_t *req)
             res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
         }
 
-        if (fb->format != PIXFORMAT_JPEG)
+        if (convertToJpeg)
         {
             free(_jpg_buf);
         }
