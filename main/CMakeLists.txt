@@ -2,6 +2,8 @@ idf_component_register(
     SRCS
         take_picture.c
         connectwifi.c
+        publisher.c
+        camera.c
     PRIV_INCLUDE_DIRS 
         .
     PRIV_REQUIRES
@@ -10,4 +12,5 @@ idf_component_register(
         esp_wifi
         esp_http_server
         esp_timer
+        micro_ros_espidf_component
 ) 
