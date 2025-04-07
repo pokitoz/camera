@@ -21,8 +21,6 @@ RUN mkdir -p /tmp/install_micro_ros_deps_script && \
     IDF_EXPORT_QUIET=1 /tmp/install_micro_ros_deps_script/install_micro_ros_deps_script.sh && \
     rm -rf /var/lib/apt/lists/*
 
-#RUN pip3 --no-cache-dir install catkin_pkg lark-parser colcon-common-extensions importlib-resources
-
 RUN apt-get update -y && apt-get install udev -y
 
 ARG USER_ID=espidf
