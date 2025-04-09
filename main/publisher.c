@@ -56,8 +56,8 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 		}
 		else
 		{
-			img_msg.height = 1;
-			img_msg.width = fb->len;
+			img_msg.height = fb->height;
+			img_msg.width = fb->width;
 			img_msg.step = img_msg.width;
 			img_msg.data.data = fb->buf;
 			img_msg.data.size = fb->len;
