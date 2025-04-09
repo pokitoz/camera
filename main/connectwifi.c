@@ -43,6 +43,9 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     {
         if (s_retry_num < MAXIMUM_RETRY)
         {
+            // Wait a bit before reconnection..
+            usleep(5000);
+
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
