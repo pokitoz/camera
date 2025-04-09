@@ -39,6 +39,10 @@
 		}                                                                                  \
 	}
 
+
+// Time in seconds
+static const uint32_t C_RETRY_DISCOVERY_TIME = 10000;
+static const uint32_t C_TIMER_PICTURE_AQUISITION = 10;
 static const char *LOG_TAG = "picture:publish";
 rcl_publisher_t publisher;
 sensor_msgs__msg__Image img_msg;
@@ -97,8 +101,9 @@ void micro_ros_task(void *arg)
 		{
 			break;
 		}
+
 		// Sleep a bit.. and retry it takes multiple tries sometimes..
-		usleep(10000);
+		usleep(C_RETRY_DISCOVERY_TIME);
 	}
 
 	RCCHECK(ret);
@@ -116,7 +121,7 @@ void micro_ros_task(void *arg)
 
 	// create timer,
 	rcl_timer_t timer;
-	RCCHECK(rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(3000),
+	RCCHECK(rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(C_TIMER_PICTURE_AQUISITION),
 									 timer_callback, true));
 
 	// create executor
