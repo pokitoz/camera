@@ -17,13 +17,8 @@
 #include <esp_system.h>
 #include <nvs_flash.h>
 
-int wifi_connect_status = 0;
-static const char *TAG = "Connect_WiFi";
-int s_retry_num = 0;
-
-
-#define WIFI_SSID "replace_with_your_ssid"
-#define WIFI_PASSWORD "replace_with_your_password"
+#define WIFI_SSID "tobechanged"
+#define WIFI_PASSWORD "tobechanged"
 #define MAXIMUM_RETRY 5
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -141,7 +136,7 @@ void connect_wifi(void)
             ESP_LOGE(TAG, "UNEXPECTED EVENT");
         }
 
-        usleep(retry_ms * 1000);
+        usleep(retry_ms * 1000* 1000);
     }
 
 

@@ -70,9 +70,9 @@ static const uint32_t C_TIMER_PICTURE_AQUISITION = 10u;
 static const char *LOG_TAG = "picture:publish";
 
 /// Name of the configurable integer parameter
-static const char* publish_toogle_name = "publish_toogle";
-static const char* publish_picture_rate = "publish_picture_rate_ms";
-static const char* publish_picture_quality = "publish_picture_quality";
+static const char *publish_toogle_name = "publish_toogle";
+static const char *publish_picture_rate = "publish_picture_rate_ms";
+static const char *publish_picture_quality = "publish_picture_quality";
 
 /**
  * @brief Structure containing all state and ROS 2 objects for the image publisher.
@@ -332,10 +332,14 @@ void micro_ros_task(void *arg)
 
 	RCCHECK(rclc_node_init_default(&publisher.node, C_PUBLISHER_NAME, C_PUBLISHER_NAMESPACE, &publisher.support));
 
-	RCCHECK(rclc_publisher_init(&publisher.publisher, &publisher.node,
+	// RCCHECK(rclc_publisher_init(&publisher.publisher, &publisher.node,
+	//									ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Image),
+	//									C_PUBLISHER_TOPIC_NAME,
+	//									&publisher_options.qos));
+
+	RCCHECK(rclc_publisher_init_default(&publisher.publisher, &publisher.node,
 										ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Image),
-										C_PUBLISHER_TOPIC_NAME,
-										&publisher_options.qos));
+										C_PUBLISHER_TOPIC_NAME));
 
 	RCCHECK(rclc_parameter_server_init_default(&publisher.params, &publisher.node));
 
