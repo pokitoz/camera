@@ -1,3 +1,12 @@
+/**
+ * @file esp32_image_publisher.c
+ * @brief micro-ROS image publisher for ESP32-CAM using FreeRTOS.
+ *
+ * This file implements a ROS 2 image publisher that captures JPEG images from
+ * an ESP32-CAM module and publishes them over a micro-ROS agent. It includes
+ * support for parameter management to control publishing rate and enable/disable publishing.
+ */
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -15,13 +24,13 @@
 #include <sensor_msgs/msg/image.h>
 #include <rosidl_runtime_c/string.h>
 #include <rosidl_runtime_c/string_functions.h>
-
 #include <rmw_microros/rmw_microros.h>
 
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 
+/// Macro to check return value and abort on failure
 #define RCCHECK(fn)                                                                      \
 	{                                                                                    \
 		rcl_ret_t temp_rc = fn;                                                          \
@@ -31,6 +40,8 @@
 			vTaskDelete(NULL);                                                           \
 		}                                                                                \
 	}
+
+/// Macro to check return value and log error, but continue
 #define RCSOFTCHECK(fn)                                                                    \
 	{                                                                                      \
 		rcl_ret_t temp_rc = fn;                                                            \
@@ -40,40 +51,50 @@
 		}                                                                                  \
 	}
 
+/// ROS 2 node, namespace, topic names
 #define C_PUBLISHER_NAME "esp32_img_pub"
 #define C_PUBLISHER_NAMESPACE ""
 #define C_PUBLISHER_TOPIC_NAME "img"
 
-// Number of retries for discovery before giving up
+//! @brief Maximum number of retries during agent discovery.
 static const uint32_t C_RETRY_DISCOVERY_NUMBER = 3u;
-// Time for discovery [ms]
+//! @brief Time delay between discovery retries (in ms).
 static const uint32_t C_RETRY_DISCOVERY_TIME = 10000u;
-// Time when discovery failed during the last attempts [min]
+//! @brief Wait time (in minutes) after all retries fail before trying again.
 static const uint32_t C_RETRY_DISCOVERY_FAILED_TIME = 10u;
-// Time between 2 camera image aquisition [ms]
+//! @brief Timer interval for camera picture acquisition (in ms).
 static const uint32_t C_TIMER_PICTURE_AQUISITION = 10u;
-// Tag before a log
+
+/// Tag used for ESP_LOG output
 static const char *LOG_TAG = "picture:publish";
-// Parameter name
+
+/// Name of the configurable integer parameter
 static const char *parameter_name = "parameter_int";
 
+/**
+ * @brief Structure containing all state and ROS 2 objects for the image publisher.
+ */
 typedef struct
 {
-	rcl_publisher_t publisher;
-	sensor_msgs__msg__Image img_msg;
-	bool publish;
-	rclc_support_t support;
-	rcl_node_t node;
-	rcl_timer_t timer_picture;
-	rclc_parameter_server_t params;
+	rcl_publisher_t publisher;		 ///< ROS 2 image publisher
+	sensor_msgs__msg__Image img_msg; ///< Image message to publish
+	bool publish;					 ///< Flag to control publishing
+	rclc_support_t support;			 ///< ROS 2 support object
+	rcl_node_t node;				 ///< ROS 2 node
+	rcl_timer_t timer_picture;		 ///< Timer to trigger image publishing
+	rclc_parameter_server_t params;	 ///< ROS 2 parameter server
 } TPublisher;
 
 static TPublisher publisher;
 
+/**
+ * @brief Initializes the image message fields with default values.
+ *
+ * @param p_img_msg Pointer to the image message to initialize.
+ */
 static void publisher_init_img_msg(sensor_msgs__msg__Image *p_img_msg)
 {
 	memset(p_img_msg, sizeof(*p_img_msg), 0);
-
 	p_img_msg->is_bigendian = false;
 	rosidl_runtime_c__String__init(&p_img_msg->header.frame_id);
 	rosidl_runtime_c__String__assign(&p_img_msg->header.frame_id, "image_frame");
@@ -81,6 +102,12 @@ static void publisher_init_img_msg(sensor_msgs__msg__Image *p_img_msg)
 	rosidl_runtime_c__String__assign(&p_img_msg->encoding, "jpeg");
 }
 
+/**
+ * @brief Timer callback that captures a frame and publishes it.
+ *
+ * @param timer ROS 2 timer handle.
+ * @param last_call_time Timestamp of last callback execution (unused).
+ */
 static void timer_picture_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
 	RCLC_UNUSED(last_call_time);
@@ -113,7 +140,6 @@ static void timer_picture_callback(rcl_timer_t *timer, int64_t last_call_time)
 			else
 			{
 				ESP_LOGE(LOG_TAG, "on publish %d", retval);
-				// Count number of errors, if too many, we restart.
 			}
 
 			esp_camera_fb_return(fb);
@@ -121,22 +147,22 @@ static void timer_picture_callback(rcl_timer_t *timer, int64_t last_call_time)
 	}
 }
 
+/**
+ * @brief Attempt to discover a micro-ROS agent over UDP.
+ *
+ * @param init_options Initialized rcl_init_options_t object.
+ * @return rcl_ret_t Return code from discovery.
+ */
 static rcl_ret_t publisher_discover_agent(rcl_init_options_t *init_options)
 {
 	rmw_init_options_t *rmw_options = rcl_init_options_get_rmw_init_options(init_options);
 	rcl_ret_t retval;
-
-	// Static Agent IP and port can be used instead of autodisvery.
-	// RCCHECK(rmw_uros_options_set_udp_address(CONFIG_MICRO_ROS_AGENT_IP,
-	//		  CONFIG_MICRO_ROS_AGENT_PORT, rmw_options));
 
 	bool discovery_retry = true;
 	while (discovery_retry)
 	{
 		for (uint32_t i = 1; i <= C_RETRY_DISCOVERY_NUMBER; i++)
 		{
-			// Need to open port on 8888 and discovery on 7400 (default):
-			//    MicroXRCEAgent udp4 -p 8888 -d
 			retval = rmw_uros_discover_agent(rmw_options);
 			if (retval == RCL_RET_OK)
 			{
@@ -163,6 +189,12 @@ static rcl_ret_t publisher_discover_agent(rcl_init_options_t *init_options)
 	return retval;
 }
 
+/**
+ * @brief Adds and sets the default parameter on the parameter server.
+ *
+ * @param param_server Pointer to parameter server object.
+ * @return rcl_ret_t Return code.
+ */
 static rcl_ret_t publisher_setup_parameters(rclc_parameter_server_t *param_server)
 {
 	int64_t param_value = 100;
@@ -173,17 +205,23 @@ static rcl_ret_t publisher_setup_parameters(rclc_parameter_server_t *param_serve
 	}
 	else
 	{
-		// Set parameter value
 		retval = rclc_parameter_set_int(param_server, parameter_name, param_value);
 		if (RCL_RET_OK != retval)
 		{
 			ESP_LOGE(LOG_TAG, "on set param");
 		}
 	}
-
 	return retval;
 }
 
+/**
+ * @brief Callback triggered when a parameter is added, changed, or removed.
+ *
+ * @param old_param Pointer to previous parameter state.
+ * @param new_param Pointer to new parameter value.
+ * @param context Unused user data.
+ * @return true if the change is accepted, false otherwise.
+ */
 static bool on_parameter_changed(const Parameter *old_param, const Parameter *new_param, void *context)
 {
 	RCLC_UNUSED(context);
@@ -217,6 +255,14 @@ static bool on_parameter_changed(const Parameter *old_param, const Parameter *ne
 	return retval;
 }
 
+/**
+ * @brief Entry point for the micro-ROS task.
+ *
+ * Initializes all micro-ROS entities, discovers the agent, and enters
+ * the executor loop to publish camera frames and handle parameters.
+ *
+ * @param arg Unused task argument.
+ */
 void micro_ros_task(void *arg)
 {
 	rcl_ret_t retval;
@@ -226,32 +272,24 @@ void micro_ros_task(void *arg)
 	rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
 	RCCHECK(rcl_init_options_init(&init_options, allocator));
 
-	// This will block until the agent is found!
 	RCCHECK(publisher_discover_agent(&init_options));
 
 	RCCHECK(rclc_support_init_with_options(&publisher.support, 0, NULL, &init_options, &allocator));
 	RCCHECK(rclc_node_init_default(&publisher.node, C_PUBLISHER_NAME, C_PUBLISHER_NAMESPACE, &publisher.support));
-
 	RCCHECK(rclc_publisher_init_default(&publisher.publisher, &publisher.node,
 										ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Image),
 										C_PUBLISHER_TOPIC_NAME));
-
 	RCCHECK(rclc_parameter_server_init_default(&publisher.params, &publisher.node));
-
-	RCCHECK(rclc_timer_init_default2(&publisher.timer_picture, &publisher.support, 
+	RCCHECK(rclc_timer_init_default2(&publisher.timer_picture, &publisher.support,
 									 RCL_MS_TO_NS(C_TIMER_PICTURE_AQUISITION),
 									 timer_picture_callback, true));
 
 	RCCHECK(rclc_executor_init(&executor, &publisher.support.context,
 							   RCLC_EXECUTOR_PARAMETER_SERVER_HANDLES + 1,
 							   &allocator));
-
 	RCCHECK(rclc_executor_add_parameter_server(&executor, &publisher.params, on_parameter_changed));
-
 	RCCHECK(rclc_executor_add_timer(&executor, &publisher.timer_picture));
-
 	RCCHECK(publisher_setup_parameters(&publisher.params));
-
 	publisher_init_img_msg(&publisher.img_msg);
 
 	while (1)
@@ -261,19 +299,21 @@ void micro_ros_task(void *arg)
 		{
 			ESP_LOGW(LOG_TAG, "on spin %d", retval);
 		}
-
 		rclc_sleep_ms(1);
 	}
 
-	// free resources
 	RCCHECK(rcl_publisher_fini(&publisher.publisher, &publisher.node));
 	RCCHECK(rclc_parameter_server_fini(&publisher.params, &publisher.node));
 	RCCHECK(rcl_node_fini(&publisher.node));
 	vTaskDelete(NULL);
 }
 
+/**
+ * @brief Starts the image publisher task.
+ *
+ * Pins the micro-ROS task to APP_CPU to let PRO_CPU handle WiFi operations.
+ */
 void start_publish(void)
 {
-	// pin micro-ros task in APP_CPU to make PRO_CPU to deal with wifi:
 	xTaskCreate(micro_ros_task, "uros_task", 24000, NULL, 5, NULL);
 }
