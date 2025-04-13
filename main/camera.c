@@ -58,6 +58,10 @@ pixformat_t get_camera_format(void)
     return camera_config.pixel_format;
 }
 
+int get_camera_quality(void)
+{
+    return camera_config.jpeg_quality;
+}
 
 esp_err_t update_camera(pixformat_t pixformat, framesize_t framesize, int jpegquality)
 {

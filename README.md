@@ -110,3 +110,16 @@ On WSL or RPi, do the following:
 ```
 ros2 topic echo mytopic std_msgs/msg/Int32
 ```
+
+## Parameter
+
+The node has different parameters. See the following command to set them.
+
+```
+ros2 service call /esp32_img_pub/list_parameters rcl_interfaces/srv/ListParameters "{}"
+
+ros2 service call /esp32_img_pub/set_parameters rcl_interfaces/srv/SetParameters "{parameters: [{name: 'publish_picture_quality', value: {type: 2, integer_value: 20}}]}"
+```
+
+Unfortunately, `ros2 param set` is not working.
+

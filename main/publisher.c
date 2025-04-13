@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "esp_system.h"
 #include "esp_camera.h"
+#include "camera.h"
 
 #include <uros_network_interfaces.h>
 #include <rcl/rcl.h>
@@ -69,7 +70,9 @@ static const uint32_t C_TIMER_PICTURE_AQUISITION = 10u;
 static const char *LOG_TAG = "picture:publish";
 
 /// Name of the configurable integer parameter
-static const char *parameter_name = "parameter_int";
+static const char* publish_toogle_name = "publish_toogle";
+static const char* publish_picture_rate = "publish_picture_rate_ms";
+static const char* publish_picture_quality = "publish_picture_quality";
 
 /**
  * @brief Structure containing all state and ROS 2 objects for the image publisher.
@@ -197,20 +200,48 @@ static rcl_ret_t publisher_discover_agent(rcl_init_options_t *init_options)
  */
 static rcl_ret_t publisher_setup_parameters(rclc_parameter_server_t *param_server)
 {
-	int64_t param_value = 100;
-	rcl_ret_t retval = rclc_add_parameter(param_server, parameter_name, RCLC_PARAMETER_INT);
+	rcl_ret_t retval = rclc_add_parameter(param_server, publish_picture_quality, RCLC_PARAMETER_INT);
 	if (RCL_RET_OK != retval)
 	{
 		ESP_LOGE(LOG_TAG, "on add param");
 	}
 	else
 	{
-		retval = rclc_parameter_set_int(param_server, parameter_name, param_value);
+		retval = rclc_parameter_set_int(param_server, publish_picture_quality, get_camera_quality());
 		if (RCL_RET_OK != retval)
 		{
 			ESP_LOGE(LOG_TAG, "on set param");
 		}
 	}
+
+	rclc_add_parameter(param_server, publish_picture_rate, RCLC_PARAMETER_INT);
+	if (RCL_RET_OK != retval)
+	{
+		ESP_LOGE(LOG_TAG, "on add param");
+	}
+	else
+	{
+		retval = rclc_parameter_set_int(param_server, publish_picture_quality, 10);
+		if (RCL_RET_OK != retval)
+		{
+			ESP_LOGE(LOG_TAG, "on set param");
+		}
+	}
+
+	retval = rclc_add_parameter(param_server, publish_toogle_name, RCLC_PARAMETER_BOOL);
+	if (RCL_RET_OK != retval)
+	{
+		ESP_LOGE(LOG_TAG, "on add param");
+	}
+	else
+	{
+		retval = rclc_parameter_set_bool(param_server, publish_toogle_name, publisher.publish);
+		if (RCL_RET_OK != retval)
+		{
+			ESP_LOGE(LOG_TAG, "on set param");
+		}
+	}
+
 	return retval;
 }
 
@@ -222,7 +253,7 @@ static rcl_ret_t publisher_setup_parameters(rclc_parameter_server_t *param_serve
  * @param context Unused user data.
  * @return true if the change is accepted, false otherwise.
  */
-static bool on_parameter_changed(const Parameter *old_param, const Parameter *new_param, void *context)
+static bool publisher_on_parameter_changed(const Parameter *old_param, const Parameter *new_param, void *context)
 {
 	RCLC_UNUSED(context);
 
@@ -238,18 +269,27 @@ static bool on_parameter_changed(const Parameter *old_param, const Parameter *ne
 		ESP_LOGE(LOG_TAG, "on remove param %s", old_param->name.data);
 		retval = false;
 	}
-	else if (strcmp(new_param->name.data, "publish_toogle") == 0 &&
+	else if (strcmp(new_param->name.data, publish_toogle_name) == 0 &&
 			 new_param->value.type == RCLC_PARAMETER_BOOL)
 	{
 		publisher.publish = new_param->value.bool_value;
 		ESP_LOGI(LOG_TAG, "update publish: %s", (publisher.publish) ? "ON" : "OFF");
 	}
-	else if (strcmp(new_param->name.data, "publish_rate_ms") == 0 &&
+	else if (strcmp(new_param->name.data, publish_picture_rate) == 0 &&
 			 new_param->value.type == RCLC_PARAMETER_INT)
 	{
 		int64_t old;
 		RCSOFTCHECK(rcl_timer_exchange_period(&publisher.timer_picture, RCL_MS_TO_NS(new_param->value.integer_value), &old));
-		ESP_LOGI(LOG_TAG, "update timer %lld", new_param->value.integer_value);
+		ESP_LOGI(LOG_TAG, "update timer to %lld from %lld", new_param->value.integer_value, old);
+	}
+	else if (strcmp(new_param->name.data, publish_picture_quality) == 0 &&
+			 new_param->value.type == RCLC_PARAMETER_INT)
+	{
+		ESP_LOGI(LOG_TAG, "update quality %lld", new_param->value.integer_value);
+		if (new_param->value.integer_value != get_camera_quality())
+		{
+			update_camera(PIXFORMAT_JPEG, FRAMESIZE_HVGA, new_param->value.integer_value);
+		}
 	}
 
 	return retval;
@@ -268,6 +308,20 @@ void micro_ros_task(void *arg)
 	rcl_ret_t retval;
 	rcl_allocator_t allocator = rcl_get_default_allocator();
 	rclc_executor_t executor = rclc_executor_get_zero_initialized_executor();
+	rcl_publisher_options_t publisher_options = rcl_publisher_get_default_options();
+
+	publisher_options.qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+	publisher_options.qos.depth = 1;
+	publisher_options.qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+	publisher_options.qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
+	publisher_options.qos.liveliness = RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT;
+	publisher_options.qos.deadline.sec = 0;
+	publisher_options.qos.deadline.nsec = 0;
+	publisher_options.qos.lifespan.sec = 0;
+	publisher_options.qos.lifespan.nsec = 0;
+	publisher_options.qos.liveliness_lease_duration.sec = 0;
+	publisher_options.qos.liveliness_lease_duration.nsec = 0;
+	publisher_options.qos.avoid_ros_namespace_conventions = false;
 
 	rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
 	RCCHECK(rcl_init_options_init(&init_options, allocator));
@@ -275,26 +329,35 @@ void micro_ros_task(void *arg)
 	RCCHECK(publisher_discover_agent(&init_options));
 
 	RCCHECK(rclc_support_init_with_options(&publisher.support, 0, NULL, &init_options, &allocator));
+
 	RCCHECK(rclc_node_init_default(&publisher.node, C_PUBLISHER_NAME, C_PUBLISHER_NAMESPACE, &publisher.support));
-	RCCHECK(rclc_publisher_init_default(&publisher.publisher, &publisher.node,
+
+	RCCHECK(rclc_publisher_init(&publisher.publisher, &publisher.node,
 										ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Image),
-										C_PUBLISHER_TOPIC_NAME));
+										C_PUBLISHER_TOPIC_NAME,
+										&publisher_options.qos));
+
 	RCCHECK(rclc_parameter_server_init_default(&publisher.params, &publisher.node));
+
 	RCCHECK(rclc_timer_init_default2(&publisher.timer_picture, &publisher.support,
 									 RCL_MS_TO_NS(C_TIMER_PICTURE_AQUISITION),
 									 timer_picture_callback, true));
 
 	RCCHECK(rclc_executor_init(&executor, &publisher.support.context,
-							   RCLC_EXECUTOR_PARAMETER_SERVER_HANDLES + 1,
+							   RCLC_EXECUTOR_PARAMETER_SERVER_HANDLES + 3,
 							   &allocator));
-	RCCHECK(rclc_executor_add_parameter_server(&executor, &publisher.params, on_parameter_changed));
+
+	RCCHECK(rclc_executor_add_parameter_server(&executor, &publisher.params, publisher_on_parameter_changed));
+
 	RCCHECK(rclc_executor_add_timer(&executor, &publisher.timer_picture));
+
 	RCCHECK(publisher_setup_parameters(&publisher.params));
+
 	publisher_init_img_msg(&publisher.img_msg);
 
 	while (1)
 	{
-		retval = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+		retval = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10));
 		if (retval != RCL_RET_OK)
 		{
 			ESP_LOGW(LOG_TAG, "on spin %d", retval);
@@ -315,5 +378,5 @@ void micro_ros_task(void *arg)
  */
 void start_publish(void)
 {
-	xTaskCreate(micro_ros_task, "uros_task", 24000, NULL, 5, NULL);
+	xTaskCreate(micro_ros_task, "uros_task", 30000, NULL, 5, NULL);
 }
