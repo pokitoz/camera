@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.5)
+project(video_recorder)
+
+# Default to C++17
+set(CMAKE_CXX_STANDARD 17)
+
+# Find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
+
+add_executable(video_recorder main.cpp)
+ament_target_dependencies(video_recorder rclcpp sensor_msgs cv_bridge OpenCV)
+
+install(TARGETS
+  video_recorder
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()

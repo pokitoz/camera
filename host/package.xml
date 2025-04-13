@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>video_recorder</name>
+  <version>0.1.0</version>
+  <description>Records video from a ROS2 image topic using OpenCV.</description>
+
+  <maintainer email="florian.depraz@outlook.com">Florian Depraz</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build dependencies (needed at compile time) -->
+  <build_depend>rclcpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+
+  <!-- Run dependencies (needed at runtime) -->
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+
+  <!-- Optional: export flags or build types -->
+  <export>
+    <!-- custom export tags -->
+  </export>
+</package>
