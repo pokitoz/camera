@@ -1,7 +1,7 @@
+#include "camera_local.h"
+
 #include <esp_camera.h>
 #include <esp_log.h>
-
-#include "camera_local.h"
 
 static const char *LOG_CAMERA_TAG = "picture:camera";
 
@@ -31,12 +31,10 @@ static camera_config_t camera_config = {
 
     // YUV422,GRAYSCALE,RGB565,JPEG
     .pixel_format = PIXFORMAT_JPEG,
-    // QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG.
-    // The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
     .frame_size = FRAMESIZE_HVGA,
 
     // 0-63, for OV series camera sensors, lower number means higher quality
-    .jpeg_quality = 10,
+    .jpeg_quality = 15,
     // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .fb_count = 1,
     // CAMERA_FB_IN_DRAM CAMERA_FB_IN_PSRAM
@@ -46,17 +44,38 @@ static camera_config_t camera_config = {
 
 esp_err_t init_camera(void)
 {
-    // initialize the camera
     esp_err_t err = esp_camera_init(&camera_config);
+
     if (err != ESP_OK)
     {
         ESP_LOGE(LOG_CAMERA_TAG, "on init");
     }
-
     return err;
 }
 
 pixformat_t get_camera_format(void)
 {
     return camera_config.pixel_format;
+}
+
+
+esp_err_t update_camera(pixformat_t pixformat, framesize_t framesize, int jpegquality)
+{
+    esp_err_t ret = esp_camera_deinit();
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(LOG_CAMERA_TAG, "on deinit");
+    }
+    else
+    {
+        camera_config.pixel_format = pixformat,
+        camera_config.frame_size = framesize,
+        camera_config.jpeg_quality = jpegquality,
+    
+        // Re init with the updated parameters
+        ret = init_camera();    
+    }
+
+    return ret;
 }

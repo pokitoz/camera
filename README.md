@@ -9,6 +9,14 @@
 - Monitor
 - Remove the wire and reboot
 
+- Use PSRAM external 8MB
+- Flash of 4MB
+
+## Parameters
+
+Check parameters of the nodes using `ros2 param list`.
+It can be used to update the image aquisition.
+
 ## RPi or WSL
 
 - See Discovery section, the microAgent needs to be enabled.
@@ -20,7 +28,7 @@
 microROS is configured to use dynamic discovery to the micro Agent as follow:
 ```
 https://micro-xrce-dds.docs.eprosima.com/en/latest/
-cd ~/Micro-XRCE-DDS-Agent
+cd ~/Micro-XRCE-DDS-Agent/build
 ./MicroXRCEAgent udp4 -p 8888 -d
 ```
 

@@ -21,9 +21,7 @@
 #include "publisher.h"
 
 
-
 static const char *LOG_TAG = "picture:stream";
-
 
 esp_err_t jpg_stream_httpd_handler(httpd_req_t *req)
 {

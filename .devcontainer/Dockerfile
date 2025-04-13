@@ -4,6 +4,9 @@ FROM espressif/idf:${DOCKER_TAG}
 
 # From https://github.com/micro-ROS/micro_ros_espidf_component/blob/jazzy/docker/Dockerfile
 
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
 ENV IDF_PATH=/opt/esp/idf/
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update -q && \
@@ -30,12 +33,7 @@ RUN useradd --create-home --home-dir /home/$USER_ID --shell /bin/bash --user-gro
     echo $USER_ID:$USER_ID | chpasswd && \
     echo "$USER_ID ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-ARG USER_ID
 USER $USER_ID
-
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-
 
 RUN echo "source $IDF_PATH/export.sh > /dev/null 2>&1" >> ~/.bashrc
 
